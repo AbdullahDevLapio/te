@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>مقطّع الفيديو الاحترافي</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+<style>
+:root{--bg:#0b1530;--card:#111d3f;--card2:#16254d;--gold:#d4af37;--gold2:#f0d27a;--text:#eef2ff;--muted:#9aa8cf;--ok:#3ddc97;--err:#ff6b6b;--line:rgba(212,175,55,.25)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Cairo',Tahoma,sans-serif;background:radial-gradient(1200px 600px at 80% -10%,#1b2d63 0%,var(--bg) 60%);color:var(--text);min-height:100vh;padding:28px 16px 60px}
+.wrap{max-width:860px;margin:0 auto}
+header{text-align:center;margin-bottom:26px}
+header h1{font-size:2rem;font-weight:800;background:linear-gradient(90deg,var(--gold),var(--gold2));-webkit-background-clip:text;background-clip:text;color:transparent}
+header p{color:var(--muted);margin-top:6px}
+.card{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);border-radius:18px;padding:22px;margin-bottom:18px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.drop{border:2px dashed var(--gold);border-radius:16px;padding:38px 16px;text-align:center;cursor:pointer;transition:.2s;background:rgba(212,175,55,.04)}
+.drop:hover,.drop.over{background:rgba(212,175,55,.12);transform:translateY(-2px)}
+.drop .ic{font-size:2.6rem}
+.drop b{display:block;margin-top:8px;font-size:1.15rem}
+.drop span{color:var(--muted);font-size:.9rem}
+input[type=file]{display:none}
+.info{display:none;margin-top:16px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.info div{background:rgba(255,255,255,.05);border-radius:12px;padding:10px 12px}
+.info small{color:var(--muted);display:block;font-size:.78rem}
+.info strong{color:var(--gold2);word-break:break-all}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px}
+@media(max-width:560px){.row{grid-template-columns:1fr}}
+label{display:block;color:var(--muted);font-size:.88rem;margin-bottom:6px}
+select,input[type=number]{width:100%;background:#0b1530;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;outline:none}
+select:focus,input[type=number]:focus{border-color:var(--gold)}
+.chk{display:flex;align-items:center;gap:8px;margin-top:14px;color:var(--text);cursor:pointer}
+.chk input{accent-color:var(--gold);width:18px;height:18px}
+.preview{margin-top:14px;padding:12px;border-radius:12px;background:rgba(212,175,55,.08);color:var(--gold2);display:none;font-weight:600}
+.btn{width:100%;margin-top:16px;border:0;border-radius:14px;padding:15px;font:inherit;font-weight:800;font-size:1.05rem;cursor:pointer;color:#1a1400;background:linear-gradient(90deg,var(--gold),var(--gold2));transition:.2s}
+.btn:hover{filter:brightness(1.07);transform:translateY(-1px)}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.btn.sec{background:transparent;color:var(--gold2);border:1px solid var(--gold);margin-top:10px}
+.bar{height:14px;background:rgba(255,255,255,.08);border-radius:99px;overflow:hidden;margin-top:12px}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--gold),var(--gold2));transition:width .25s}
+.status{margin-top:10px;color:var(--muted);font-size:.92rem;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.parts{display:grid;gap:10px;margin-top:10px}
+.part{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(255,255,255,.05);border-radius:12px;padding:12px 14px;flex-wrap:wrap}
+.part .n{font-weight:700}
+.part .m{color:var(--muted);font-size:.85rem}
+.part a{background:var(--gold);color:#1a1400;text-decoration:none;padding:8px 16px;border-radius:10px;font-weight:700;font-size:.9rem}
+.tag{color:var(--ok);font-weight:700;font-size:.9rem}
+.log{display:none;margin-top:12px;background:#070e22;border-radius:12px;padding:10px;max-height:150px;overflow:auto;font:12px/1.6 monospace;color:#8fa0d0;direction:ltr;text-align:left}
+.note{color:var(--muted);font-size:.85rem;line-height:1.9;margin-top:6px}
+.err{color:var(--err);margin-top:10px;font-weight:600}
+h3{margin-bottom:6px;color:var(--gold2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>✂️ مقطّع الفيديو الاحترافي</h1>
+    <p>ارفع فيديو طويل وثقيل وسيتم تقطيعه إلى أجزاء مرتبة (part_001، part_002 ...) بدون إعادة ضغط وبنفس الجودة</p>
+  </header>
+
+  <div class="card">
+    <label class="drop" id="drop" for="file">
+      <div class="ic">🎬</div>
+      <b>اضغط لاختيار الفيديو أو اسحبه هنا</b>
+      <span>MP4 / MOV / MKV / AVI / WEBM — يدعم الملفات الكبيرة دون تحميلها كاملة في الذاكرة</span>
+    </label>
+    <input type="file" id="file" accept="video/*,.mkv,.mp4,.mov,.avi,.webm,.ts,.m4v">
+    <div class="info" id="info">
+      <div><small>الاسم</small><strong id="iName"></strong></div>
+      <div><small>الحجم</small><strong id="iSize"></strong></div>
+      <div><small>المدة</small><strong id="iDur"></strong></div>
+    </div>
+  </div>
+
+  <div class="card" id="settings" style="display:none">
+    <h3>إعدادات التقطيع</h3>
+    <div class="row">
+      <div>
+        <label>طريقة التقطيع</label>
+        <select id="mode">
+          <option value="minutes">حسب مدة كل جزء (بالدقائق)</option>
+          <option value="parts">حسب عدد الأجزاء</option>
+          <option value="size">حسب حجم تقريبي لكل جزء (MB)</option>
+        </select>
+      </div>
+      <div>
+        <label id="valLabel">مدة كل جزء (دقيقة)</label>
+        <input type="number" id="val" min="1" value="10">
+      </div>
+    </div>
+    <label class="chk"><input type="checkbox" id="auto" checked> تنزيل كل جزء تلقائياً فور اكتماله (يوفّر الذاكرة مع الملفات الضخمة)</label>
+    <div class="preview" id="preview"></div>
+    <button class="btn" id="go">🚀 ابدأ التقطيع</button>
+    <p class="note">التقطيع يتم بنسخ البيانات مباشرة (Stream Copy) لذلك هو سريع جداً وبدون أي فقد في الجودة، لكن نقاط القطع تقع عند أقرب إطار رئيسي (Keyframe) فقد تختلف مدة الجزء بثوانٍ قليلة عن المطلوب. في حال ظهرت رسالة السماح بتنزيل ملفات متعددة وافق عليها.</p>
+  </div>
+
+  <div class="card" id="progCard" style="display:none">
+    <h3>التقدّم</h3>
+    <div class="bar"><i id="bar"></i></div>
+    <div class="status"><span id="stTxt">...</span><span id="stPct">0%</span></div>
+    <button class="btn sec" id="cancel">⏹ إيقاف</button>
+    <div class="log" id="log"></div>
+    <div id="errBox" class="err"></div>
+  </div>
+
+  <div class="card" id="outCard" style="display:none">
+    <h3>الأجزاء الجاهزة</h3>
+    <div class="parts" id="parts"></div>
+    <button class="btn sec" id="dlAll" style="display:none">⬇️ تنزيل كل الأجزاء بالترتيب</button>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let ffmpeg = null, loaded = false, currentFile = null, duration = 0, cancelled = false, busy = false;
+const results = [];
+
+const fmtSize = b => b >= 1073741824 ? (b/1073741824).toFixed(2)+' GB' : (b/1048576).toFixed(1)+' MB';
+const fmtTime = s => { s = Math.round(s); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60; return [h,m,x].map(v=>String(v).padStart(2,'0')).join(':'); };
+const pad = (n, w=3) => String(n).padStart(w, '0');
+const log = t => { const l=$('log'); l.style.display='block'; l.textContent += t+'\n'; l.scrollTop=l.scrollHeight; };
+
+// ---------- اختيار الملف ----------
+const drop = $('drop');
+['dragenter','dragover'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', ev => { if (ev.dataTransfer.files[0]) pickFile(ev.dataTransfer.files[0]); });
+$('file').addEventListener('change', e => { if (e.target.files[0]) pickFile(e.target.files[0]); });
+
+async function pickFile(f) {
+  if (busy) return;
+  currentFile = f; duration = 0;
+  $('info').style.display = 'grid';
+  $('iName').textContent = f.name; $('iSize').textContent = fmtSize(f.size); $('iDur').textContent = '...';
+  $('settings').style.display = 'block';
+  $('go').disabled = true;
+  duration = await readDuration(f);
+  if (duration) { $('iDur').textContent = fmtTime(duration); $('go').disabled = false; updatePreview(); }
+  else { $('iDur').textContent = 'سيتم قراءتها عند البدء'; $('go').disabled = false; $('preview').style.display = 'none'; }
+}
+
+function readDuration(f) {
+  return new Promise(res => {
+    const v = document.createElement('video'); v.preload = 'metadata';
+    const url = URL.createObjectURL(f);
+    const done = d => { URL.revokeObjectURL(url); res(d); };
+    v.onloadedmetadata = () => done(isFinite(v.duration) ? v.duration : 0);
+    v.onerror = () => done(0);
+    setTimeout(() => done(0), 8000);
+    v.src = url;
+  });
+}
+
+// ---------- الإعدادات ----------
+const labels = { minutes:'مدة كل جزء (دقيقة)', parts:'عدد الأجزاء', size:'حجم كل جزء (MB)' };
+const defaults = { minutes:10, parts:5, size:500 };
+$('mode').addEventListener('change', () => { const m=$('mode').value; $('valLabel').textContent = labels[m]; $('val').value = defaults[m]; updatePreview(); });
+$('val').addEventListener('input', updatePreview);
+
+function computePlan() {
+  const mode = $('mode').value, v = Math.max(1, parseFloat($('val').value) || 1);
+  if (!duration) return null;
+  let seg;
+  if (mode === 'minutes') seg = v * 60;
+  else if (mode === 'parts') seg = duration / Math.floor(v);
+  else seg = duration * ((v * 1048576) / currentFile.size);
+  seg = Math.max(1, seg);
+  const count = Math.ceil(duration / seg - 0.001);
+  return { seg, count };
+}
+function updatePreview() {
+  const p = computePlan(), box = $('preview');
+  if (!p) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.textContent = `سيتم إنتاج ${p.count} جزء، مدة كل جزء تقريباً ${fmtTime(p.seg)}، وحجمه التقريبي ${fmtSize(currentFile.size * p.seg / duration)}`;
+}
+
+// ---------- تحميل ffmpeg ----------
+async function loadFFmpeg() {
+  if (loaded) return;
+  $('stTxt').textContent = 'جاري تحميل محرك المعالجة (مرة واحدة فقط)...';
+  const { FFmpeg } = FFmpegWASM;
+  const { toBlobURL } = FFmpegUtil;
+  const attempts = [
+    { core: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm', cls: 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/814.ffmpeg.js' },
+    { core: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm', cls: 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/814.ffmpeg.js' },
+    { core: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd', cls: 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/814.ffmpeg.js' },
+  ];
+  let lastErr = null;
+  for (const a of attempts) {
+    try {
+      ffmpeg = new FFmpeg();
+      ffmpeg.on('log', ({ message }) => { log(message); parseDuration(message); });
+      ffmpeg.on('progress', ({ progress }) => { if (curPartProgress) curPartProgress(Math.min(1, Math.max(0, progress))); });
+      await ffmpeg.load({
+        classWorkerURL: await toBlobURL(a.cls, 'text/javascript'),
+        coreURL: await toBlobURL(a.core + '/ffmpeg-core.js', 'text/javascript'),
+        wasmURL: await toBlobURL(a.core + '/ffmpeg-core.wasm', 'application/wasm'),
+      });
+      loaded = true;
+      return;
+    } catch (e) {
+      lastErr = e;
+      log('فشلت المحاولة: ' + (e.message || e));
+      try { ffmpeg.terminate(); } catch (_) {}
+    }
+  }
+  throw new Error('تعذّر تحميل محرك المعالجة. تأكد من الاتصال بالإنترنت وأن موقع jsdelivr/unpkg غير محجوب. (' + (lastErr && lastErr.message || '') + ')');
+}
+let curPartProgress = null, logDuration = 0;
+function parseDuration(m) {
+  const r = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(m);
+  if (r) logDuration = (+r[1])*3600 + (+r[2])*60 + parseFloat(r[3]);
+}
+
+// ---------- التقطيع ----------
+$('go').addEventListener('click', start);
+$('cancel').addEventListener('click', () => { cancelled = true; $('stTxt').textContent = 'جاري الإيقاف...'; try { ffmpeg && ffmpeg.terminate(); loaded = false; } catch(e){} });
+
+function setProgress(p, txt) { $('bar').style.width = (p*100).toFixed(1)+'%'; $('stPct').textContent = Math.round(p*100)+'%'; if (txt) $('stTxt').textContent = txt; }
+
+async function start() {
+  if (busy || !currentFile) return;
+  busy = true; cancelled = false; $('go').disabled = true;
+  $('progCard').style.display = 'block'; $('errBox').textContent = ''; $('log').textContent = '';
+  $('outCard').style.display = 'block'; $('parts').innerHTML = ''; $('dlAll').style.display = 'none';
+  results.forEach(r => URL.revokeObjectURL(r.url)); results.length = 0;
+  setProgress(0);
+
+  const base = currentFile.name.replace(/\.[^.]+$/, '').replace(/[^\w\u0600-\u06FF\- ]+/g, '_') || 'video';
+  const ext = (currentFile.name.match(/\.([^.]+)$/) || [,'mp4'])[1].toLowerCase();
+  const inDir = '/input';
+  const inPath = inDir + '/' + currentFile.name;
+
+  try {
+    await loadFFmpeg();
+    try { await ffmpeg.createDir(inDir); } catch(e){}
+    try { await ffmpeg.unmount(inDir); } catch(e){}
+    await ffmpeg.mount('WORKERFS', { files: [currentFile] }, inDir);
+
+    if (!duration) {
+      logDuration = 0;
+      setProgress(0, 'جاري قراءة مدة الفيديو...');
+      try { await ffmpeg.exec(['-i', inPath]); } catch(e){}
+      duration = logDuration;
+      if (!duration) throw new Error('تعذّر قراءة مدة الفيديو. جرّب ملفاً بصيغة MP4 أو MKV.');
+      $('iDur').textContent = fmtTime(duration); updatePreview();
+    }
+
+    const { seg, count } = computePlan();
+    for (let i = 0; i < count; i++) {
+      if (cancelled) throw new Error('تم إيقاف العملية.');
+      const start = i * seg;
+      const len = (i === count - 1) ? duration - start + 5 : seg;
+      const name = `${base}_part_${pad(i+1)}.${ext}`;
+      setProgress(i / count, `جاري إنشاء الجزء ${i+1} من ${count}...`);
+      curPartProgress = p => setProgress((i + p) / count);
+
+      const code = await ffmpeg.exec([
+        '-ss', String(start), '-i', inPath, '-t', String(len),
+        '-map', '0:v?', '-map', '0:a?', '-c', 'copy',
+        '-avoid_negative_ts', 'make_zero', '-y', name
+      ]);
+      if (code !== 0) throw new Error('فشل إنشاء الجزء ' + (i+1));
+
+      const data = await ffmpeg.readFile(name);
+      await ffmpeg.deleteFile(name);
+      if (!data || data.length < 1024) { if (i === count - 1) break; }
+      const blob = new Blob([data.buffer], { type: ext === 'mp4' || ext === 'm4v' ? 'video/mp4' : 'video/' + ext });
+      addPart(i + 1, name, blob);
+      await new Promise(r => setTimeout(r, 120));
+    }
+    setProgress(1, '✅ اكتمل التقطيع بنجاح');
+    if (results.length > 1 && !$('auto').checked) $('dlAll').style.display = 'block';
+  } catch (e) {
+    $('errBox').textContent = '⚠️ ' + (e.message || e);
+  } finally {
+    try { await ffmpeg.unmount(inDir); } catch(e){}
+    busy = false; $('go').disabled = false; curPartProgress = null;
+  }
+}
+
+function addPart(n, name, blob) {
+  const url = URL.createObjectURL(blob);
+  const auto = $('auto').checked;
+  const row = document.createElement('div'); row.className = 'part';
+  row.innerHTML = `<div><div class="n">الجزء ${n} — ${name}</div><div class="m">${fmtSize(blob.size)}</div></div>`;
+  if (auto) {
+    triggerDownload(url, name);
+    const t = document.createElement('span'); t.className = 'tag'; t.textContent = '✔ تم التنزيل';
+    row.appendChild(t);
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } else {
+    const a = document.createElement('a'); a.href = url; a.download = name; a.textContent = 'تنزيل';
+    row.appendChild(a);
+    results.push({ url, name });
+  }
+  $('parts').appendChild(row);
+}
+function triggerDownload(url, name) {
+  const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+}
+$('dlAll').addEventListener('click', async () => {
+  for (const r of results) { triggerDownload(r.url, r.name); await new Promise(res => setTimeout(res, 700)); }
+});
+</script>
+</body>
+</html>
